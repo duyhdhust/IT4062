@@ -1,265 +1,160 @@
 /* * File: handler.c
- * Description: Xử lý logic nghiệp vụ, Authentication & Logging
- * Updated: Theo bảng giao thức MỚI (Login 12x, Reg 11x, Syntax 999)
+ * Description: Logic nghiệp vụ, quản lý phiên CỤC BỘ.
  */
 
 #include "common.h"
 #include <time.h>
 
-extern UserNode *head_user;
-extern pthread_mutex_t users_mutex;
+// Khai báo các hàm DB
+int db_check_login(char *user, char *pass);
+int db_register(char *user, char *pass);
+void db_update_login_time(char *user);
 
-// --- HÀM GHI LOG HỆ THỐNG ---
+// --- HÀM GHI LOG ---
 void write_log(char *msg) {
     FILE *f = fopen("log.txt", "a");
     if (f == NULL) return;
-    
     time_t now = time(NULL);
     char *t = ctime(&now);
-    // Xóa ký tự xuống dòng thừa của ctime
     if (t[strlen(t)-1] == '\n') t[strlen(t)-1] = '\0';
-    
     fprintf(f, "[%s] %s\n", t, msg);
     fclose(f);
 }
 
-// --- 1. XỬ LÝ TRUYỀN DÒNG (STREAM PROCESSING) ---
-// Đọc từng byte, ghép lại thành dòng lệnh, cắt bỏ \r\n
+// --- XỬ LÝ TRUYỀN DÒNG ---
 int recv_line(int sock, char *buff, int max_len) {
     int n, i = 0;
     char c;
     while (i < max_len - 1) {
         n = recv(sock, &c, 1, 0); 
-        if (n <= 0) return -1; // Lỗi hoặc Client ngắt kết nối
-        
+        if (n <= 0) return -1; 
         buff[i++] = c;
-        if (c == '\n') break;  // Gặp ký tự xuống dòng thì dừng
+        if (c == '\n') break;
     }
     buff[i] = '\0';
-    // Xóa ký tự xuống dòng \r hoặc \n ở cuối chuỗi
     buff[strcspn(buff, "\r\n")] = 0; 
     return i;
 }
 
-// --- 2. QUẢN LÝ DATABASE FILE (account.txt) ---
-void load_users_from_file(const char *filename) {
-    FILE *f = fopen(filename, "r");
-    if (!f) return;
-    
-    char u[30], p[30];
-    int r;
-    while (fscanf(f, "%s %s %d", u, p, &r) != EOF) {
-        UserNode *newNode = (UserNode*)malloc(sizeof(UserNode));
-        strcpy(newNode->username, u);
-        strcpy(newNode->password, p);
-        newNode->role = r;
-        newNode->is_online = 0;
-        newNode->socket_fd = -1;
-        
-        // Chèn vào đầu danh sách (Linked List)
-        newNode->next = head_user;
-        head_user = newNode;
-    }
-    fclose(f);
-    printf("[System] Users loaded from %s.\n", filename);
-    write_log("System: Users loaded from database");
-}
-
-void save_new_user(const char *filename, char *u, char *p, int r) {
-    FILE *f = fopen(filename, "a");
-    if (f) {
-        fprintf(f, "\n%s %s %d", u, p, r);
-        fclose(f);
-    }
-}
-
-// --- 3. LOGIC ĐĂNG KÝ (REG) ---
-// Mã trả về: 110 (OK), 111 (Exist), 999 (Syntax)
+// --- LOGIC ĐĂNG KÝ ---
 void process_register(int sock, char *payload) {
-    char username[30], password[30];
+    char username[50], password[50];
     char response[BUFF_SIZE];
-    char log_msg[200];
 
-    // Check cú pháp (Syntax Error -> 999)
     if (sscanf(payload, "%s %s", username, password) != 2) {
         sprintf(response, "%s: Syntax Error\n", RES_SYNTAX_ERROR);
         send(sock, response, strlen(response), 0);
         return;
     }
 
-    int exists = 0;
-    pthread_mutex_lock(&users_mutex);
-    UserNode *curr = head_user;
-    while (curr != NULL) {
-        if (strcmp(curr->username, username) == 0) {
-            exists = 1;
-            break;
-        }
-        curr = curr->next;
-    }
-
-    if (exists) {
-        pthread_mutex_unlock(&users_mutex);
-        // Trùng username -> 111
-        sprintf(response, "%s: Username exists\n", RES_REGISTER_EXIST);
-        sprintf(log_msg, "Register Failed: Username '%s' exists", username);
+    int result = db_register(username, password);
+    if (result == 1) {
+        sprintf(response, "%s: Register Success\n", RES_REG_SUCCESS);
+        write_log("Register Success");
     } else {
-        // Thêm vào RAM
-        UserNode *newNode = (UserNode*)malloc(sizeof(UserNode));
-        strcpy(newNode->username, username);
-        strcpy(newNode->password, password);
-        newNode->role = 0; // Mặc định là User
-        newNode->is_online = 0;
-        newNode->next = head_user;
-        head_user = newNode;
-
-        // Thêm vào File
-        save_new_user("account.txt", username, password, 0);
-        
-        pthread_mutex_unlock(&users_mutex);
-        
-        // Thành công -> 110
-        sprintf(response, "%s: Register Success\n", RES_REGISTER_SUCCESS);
-        sprintf(log_msg, "Register Success: User '%s'", username);
+        sprintf(response, "%s: Username exists\n", RES_REG_EXIST);
     }
-    
-    write_log(log_msg);
     send(sock, response, strlen(response), 0);
 }
 
-// --- 4. LOGIC ĐĂNG NHẬP (LOGIN) ---
-// Mã trả về: 120 (OK), 121-124 (Lỗi), 999 (Syntax)
-// Hàm trả về 1 nếu Login OK, 0 nếu thất bại (để handle_client cập nhật state)
-int process_login(int sock, char *payload, char *out_username) {
-    char username[30], password[30];
+// --- LOGIC ĐĂNG NHẬP ---
+int process_login(int sock, char *payload, char *out_username, int *out_role) {
+    char username[50], password[50];
     char response[BUFF_SIZE];
     char log_msg[200];
 
-    // Check cú pháp -> 999
     if (sscanf(payload, "%s %s", username, password) != 2) {
         sprintf(response, "%s: Syntax Error\n", RES_SYNTAX_ERROR);
         send(sock, response, strlen(response), 0);
         return 0;
     }
 
-    UserNode *curr = head_user;
-    int success = 0;
+    // Check trực tiếp với DB
+    int status = db_check_login(username, password);
 
-    pthread_mutex_lock(&users_mutex);
-    while (curr != NULL) {
-        if (strcmp(curr->username, username) == 0) {
-            // Tìm thấy user
-            if (strcmp(curr->password, password) == 0) {
-                // Đúng pass
-                if (curr->is_online) {
-                    // Đã đăng nhập nơi khác -> 124
-                    sprintf(response, "%s: Logged in elsewhere\n", RES_LOGGED_ELSEWHERE);
-                    sprintf(log_msg, "Login Failed: User '%s' already online", username);
-                } else {
-                    // OK -> 120
-                    curr->is_online = 1;
-                    curr->socket_fd = sock;
-                    sprintf(response, "%s: Login Success\n", RES_LOGIN_SUCCESS);
-                    printf("[System] User '%s' logged in.\n", username);
-                    
-                    strcpy(out_username, username); // Lưu tên user ra ngoài
-                    sprintf(log_msg, "Login Success: User '%s'", username);
-                    success = 1;
-                }
-            } else {
-                // Sai pass -> 123
-                sprintf(response, "%s: Wrong password\n", RES_WRONG_PASSWORD);
-                sprintf(log_msg, "Login Failed: User '%s' wrong password", username);
-            }
-            break;
-        }
-        curr = curr->next;
-    }
-    pthread_mutex_unlock(&users_mutex);
+    if (status >= 0) {
+        // OK -> Lưu thông tin vào biến cục bộ (qua con trỏ)
+        strcpy(out_username, username);
+        *out_role = status;
+        
+        db_update_login_time(username);
 
-    if (curr == NULL) {
-        // Không tìm thấy user -> 122
+        sprintf(response, "%s: Login OK\n", RES_LOGIN_SUCCESS);
+        sprintf(log_msg, "Login Success: User '%s'", username);
+        write_log(log_msg);
+        
+        send(sock, response, strlen(response), 0);
+        return 1;
+    } 
+    else if (status == -1) {
+        sprintf(response, "%s: Wrong password\n", RES_WRONG_PASS);
+    } 
+    else if (status == -2) {
         sprintf(response, "%s: User not found\n", RES_USER_NOT_FOUND);
-        sprintf(log_msg, "Login Failed: Username '%s' not found", username);
+    } 
+    else if (status == -3) {
+        sprintf(response, "%s: Account locked\n", RES_ACC_LOCKED);
     }
-    
-    write_log(log_msg);
+
     send(sock, response, strlen(response), 0);
-    return success;
+    return 0;
 }
 
-// --- 5. BỘ ĐIỀU HƯỚNG (ROUTER) ---
+// --- BỘ ĐIỀU HƯỚNG ---
 void handle_client(int conn_sock) {
     char buff[BUFF_SIZE];
     char response[BUFF_SIZE];
-    char log_msg[200];
     
-    // Trạng thái phiên làm việc (Session State)
-    char current_user[30] = "";
+    // --- Session Cục Bộ (Nằm trên Stack của Thread) ---
+    // Khi thread kết thúc, các biến này tự mất -> Không cần dọn dẹp
+    char current_user[50] = "";
+    int current_role = -1; 
     int is_logged_in = 0;
 
     while (1) {
         int n = recv_line(conn_sock, buff, BUFF_SIZE);
         if (n <= 0) break; 
 
-        // --- XỬ LÝ LỆNH LOGIN ---
+        // 1. LOGIN
         if (strncmp(buff, "LOGIN", 5) == 0) {
             if (is_logged_in) {
-                // Đã login rồi mà gửi LOGIN tiếp -> Coi là sai cú pháp/ngữ cảnh (999)
-                sprintf(response, "%s: You are already logged in. Logout first.\n", RES_SYNTAX_ERROR);
+                sprintf(response, "%s: You are already logged in as %s\n", RES_ALREADY_LOGGED_IN, current_user);
                 send(conn_sock, response, strlen(response), 0);
             } else {
-                if (process_login(conn_sock, buff + 6, current_user)) {
+                if (process_login(conn_sock, buff + 6, current_user, &current_role)) {
                     is_logged_in = 1;
                 }
             }
         } 
-        // --- XỬ LÝ LỆNH LOGOUT ---
+        // 2. LOGOUT
         else if (strncmp(buff, "LOGOUT", 6) == 0) {
              if (!is_logged_in) {
-                 // Chưa login mà gửi LOGOUT -> 131
                  sprintf(response, "%s: Not logged in\n", RES_NOT_LOGGED_IN);
                  send(conn_sock, response, strlen(response), 0);
              } else {
-                 // Xử lý logout
-                 pthread_mutex_lock(&users_mutex);
-                 UserNode *curr = head_user;
-                 while (curr != NULL) {
-                     if (curr->socket_fd == conn_sock) {
-                         curr->is_online = 0;
-                         curr->socket_fd = -1;
-                         break;
-                     }
-                     curr = curr->next;
-                 }
-                 pthread_mutex_unlock(&users_mutex);
-                 
-                 // Ghi log
+                 is_logged_in = 0;
+                 current_role = -1;
+                 char log_msg[200];
                  sprintf(log_msg, "Logout: User '%s'", current_user);
                  write_log(log_msg);
                  
-                 // Reset trạng thái
-                 is_logged_in = 0;
-                 strcpy(current_user, "");
-                 
-                 // Trả về 130
+                 strcpy(current_user, ""); // Xóa session
+
                  sprintf(response, "%s: Logout Success\n", RES_LOGOUT_SUCCESS);
                  send(conn_sock, response, strlen(response), 0);
              }
         }
-        // --- XỬ LÝ LỆNH ĐĂNG KÝ (REG) ---
+        // 3. REG
         else if (strncmp(buff, "REG", 3) == 0) {
             if (is_logged_in) {
-                // Đang login mà đòi REG -> Sai ngữ cảnh -> 999
-                sprintf(response, "%s: Please logout before registering\n", RES_SYNTAX_ERROR);
+                sprintf(response, "%s: Please logout first\n", RES_ALREADY_LOGGED_IN);
                 send(conn_sock, response, strlen(response), 0);
             } else {
                 process_register(conn_sock, buff + 4);
             }
         }
-        // --- CÁC LỆNH KHÁC (Chưa implement tuần này) ---
+        // TODO: Các lệnh khác sẽ code tiếp ở đây
         else {
-            // Lệnh lạ -> 999
             sprintf(response, "%s: Unknown Command\n", RES_SYNTAX_ERROR);
             send(conn_sock, response, strlen(response), 0);
         }
