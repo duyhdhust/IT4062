@@ -37,7 +37,7 @@ ifeq ($(UNAME_S),Linux)
 endif
 
 # Danh sách file nguồn
-SRCS = server.c handler.c db.c
+SRCS = server.c handler.c db.c auth.c booking.c admin.c utils.c
 
 # --- QUY TẮC BIÊN DỊCH ---
 all: $(TARGET)

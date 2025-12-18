@@ -17,8 +17,7 @@ PGconn *connect_db() {
     return conn;
 }
 
-int db_check_login(char *user, char *pass) {
-    PGconn *conn = connect_db();
+int db_check_login(PGconn *conn, char *user, char *pass) {
     if (!conn) return -2;
 
     const char *paramValues[1] = { user };
@@ -39,12 +38,10 @@ int db_check_login(char *user, char *pass) {
     }
 
     PQclear(res);
-    PQfinish(conn);
     return status;
 }
 
-int db_register(char *user, char *pass) {
-    PGconn *conn = connect_db();
+int db_register(PGconn *conn, char *user, char *pass) {
     if (!conn) return 0;
 
     const char *paramValues[2] = { user, pass };
@@ -54,17 +51,20 @@ int db_register(char *user, char *pass) {
 
     int success = (PQresultStatus(res) == PGRES_COMMAND_OK) ? 1 : 0;
     PQclear(res);
-    PQfinish(conn);
     return success;
 }
 
-void db_update_login_time(char *username) {
-    PGconn *conn = connect_db();
+void db_update_login_time(PGconn *conn, char *username) {
     if (!conn) return;
     const char *paramValues[1] = { username };
     PGresult *res = PQexecParams(conn,
         "UPDATE users SET last_login = NOW() WHERE username = $1",
         1, NULL, paramValues, NULL, NULL, 0);
     PQclear(res);
-    PQfinish(conn);
+}
+
+void disconnect_db(PGconn *conn) {
+    if (conn) {
+        PQfinish(conn);
+    }
 }
