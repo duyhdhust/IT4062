@@ -1,4 +1,5 @@
-/server
+# Compiled binary
+server_binary
 *.o
 .DS_Store
 log.txt

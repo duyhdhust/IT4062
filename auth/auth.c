@@ -1,9 +1,9 @@
 /* * File: auth.c
- * Description: Xử lý các API liên quan đến Authentication
+ * Description: X�?lý các API liên quan đến Authentication
  */
 
 #include "auth.h"
-#include "utils.h"
+#include "../server/utils.h"
 
 // Khai báo các hàm DB
 int db_check_login(PGconn *conn, char *user, char *pass);
@@ -47,7 +47,7 @@ int process_login(int sock, PGconn *db_conn, char *payload, char *out_username, 
     int status = db_check_login(db_conn, username, password);
 
     if (status >= 0) {
-        // OK -> Lưu thông tin vào biến cục bộ (qua con trỏ)
+        // OK -> Lưu thông tin vào biến cục b�?(qua con tr�?
         strcpy(out_username, username);
         *out_role = status;
         

@@ -6,19 +6,26 @@ Hệ thống đặt vé xem phim sử dụng C và PostgreSQL (Supabase)
 
 ```
 IT4062/
-├── server.c          # Main server loop
-├── handler.c         # Command router
-├── db.c              # Database layer
-├── auth.c            # Authentication APIs (Login, Register, Logout)
-├── booking.c         # User APIs (Search, Book tickets)
-├── admin.c           # Admin APIs (Manage movies, showtimes)
-├── utils.c           # Utilities (Logging, network helpers)
-├── common.h          # Shared definitions & response codes
-├── auth.h            # Auth function declarations
-├── booking.h         # Booking function declarations
-├── admin.h           # Admin function declarations
-├── utils.h           # Utils function declarations
-└── Makefile          # Build configuration
+├── server/            # Server core (main, handler, db, utils)
+│   ├── server.c       # Main server loop
+│   ├── handler.c      # Command router
+│   ├── db.c           # Database layer
+│   ├── utils.c        # Utilities (logging, network)
+│   ├── common.h       # Shared definitions
+│   └── utils.h        # Utils declarations
+├── auth/              # Authentication module
+│   ├── auth.c         # Login, Register, Logout
+│   └── auth.h
+├── user/              # User features (booking, search)
+│   ├── booking.c      # Booking APIs
+│   └── booking.h
+├── admin/             # Admin features
+│   ├── admin.c        # Manage movies, showtimes
+│   └── admin.h
+├── client/            # Client application
+│   └── client.c
+├── Makefile
+└── README.md
 ```
 
 ## 🚀 Tính năng

@@ -1,11 +1,11 @@
 /* * File: admin.c
- * Description: Xử lý các API liên quan đến chức năng quản lý (Admin)
+ * Description: X�?lý các API liên quan đến chức năng quản lý (Admin)
  */
 
 #include "admin.h"
-#include "utils.h"
+#include "../server/utils.h"
 
-// Khai báo các hàm DB (sẽ implement sau)
+// Khai báo các hàm DB (s�?implement sau)
 // TODO: Thêm các hàm DB tương ứng trong db.c
 
 // ===== QUẢN LÝ PHIM =====
@@ -16,10 +16,10 @@ void process_add_movie(int sock, PGconn *db_conn, char *payload) {
     char response[BUFF_SIZE];
     
     // TODO: Implement add movie
-    // 1. Parse thông tin phim từ payload
+    // 1. Parse thông tin phim t�?payload
     // 2. Kiểm tra phim đã tồn tại: db_check_movie_exists()
     // 3. Thêm phim: db_add_movie(db_conn, title, genre, duration, desc)
-    // 4. Gửi kết quả về client
+    // 4. Gửi kết qu�?v�?client
     
     sprintf(response, "%s: Add movie - Coming soon\n", RES_SYNTAX_ERROR);
     send(sock, response, strlen(response), 0);
@@ -35,7 +35,7 @@ void process_edit_movie(int sock, PGconn *db_conn, char *payload) {
     // 1. Parse movie_id và thông tin mới
     // 2. Kiểm tra phim tồn tại: db_check_movie_exists()
     // 3. Cập nhật: db_update_movie(db_conn, movie_id, ...)
-    // 4. Gửi kết quả về client
+    // 4. Gửi kết qu�?v�?client
     
     sprintf(response, "%s: Edit movie - Coming soon\n", RES_SYNTAX_ERROR);
     send(sock, response, strlen(response), 0);
@@ -50,7 +50,7 @@ void process_delete_movie(int sock, PGconn *db_conn, char *payload) {
     // 1. Parse movie_id
     // 2. Kiểm tra có suất chiếu/vé đã đặt: db_check_movie_has_bookings()
     // 3. Xóa phim: db_delete_movie(db_conn, movie_id)
-    // 4. Gửi kết quả về client
+    // 4. Gửi kết qu�?v�?client
     
     sprintf(response, "%s: Delete movie - Coming soon\n", RES_SYNTAX_ERROR);
     send(sock, response, strlen(response), 0);
@@ -66,9 +66,9 @@ void process_add_showtime(int sock, PGconn *db_conn, char *payload) {
     
     // TODO: Implement add showtime
     // 1. Parse thông tin suất chiếu
-    // 2. Kiểm tra movie_id, cinema_id hợp lệ
+    // 2. Kiểm tra movie_id, cinema_id hợp l�?
     // 3. Thêm suất chiếu: db_add_showtime()
-    // 4. Gửi kết quả về client
+    // 4. Gửi kết qu�?v�?client
     
     sprintf(response, "%s: Add showtime - Coming soon\n", RES_SYNTAX_ERROR);
     send(sock, response, strlen(response), 0);
@@ -83,7 +83,7 @@ void process_edit_showtime(int sock, PGconn *db_conn, char *payload) {
     // 1. Parse show_id và thông tin mới
     // 2. Kiểm tra có vé đã đặt: db_check_show_has_bookings()
     // 3. Cập nhật: db_update_showtime()
-    // 4. Gửi kết quả về client
+    // 4. Gửi kết qu�?v�?client
     
     sprintf(response, "%s: Edit showtime - Coming soon\n", RES_SYNTAX_ERROR);
     send(sock, response, strlen(response), 0);
@@ -98,7 +98,7 @@ void process_delete_showtime(int sock, PGconn *db_conn, char *payload) {
     // 1. Parse show_id
     // 2. Kiểm tra có vé đã đặt: db_check_show_has_bookings()
     // 3. Xóa suất chiếu: db_delete_showtime()
-    // 4. Gửi kết quả về client
+    // 4. Gửi kết qu�?v�?client
     
     sprintf(response, "%s: Delete showtime - Coming soon\n", RES_SYNTAX_ERROR);
     send(sock, response, strlen(response), 0);
@@ -114,14 +114,14 @@ void process_lock_user(int sock, PGconn *db_conn, char *payload) {
     // TODO: Implement lock user
     // 1. Parse username
     // 2. Cập nhật is_locked = true: db_lock_user()
-    // 3. Gửi kết quả về client
+    // 3. Gửi kết qu�?v�?client
     
     sprintf(response, "%s: Lock user - Coming soon\n", RES_SYNTAX_ERROR);
     send(sock, response, strlen(response), 0);
     write_log("Lock user requested");
 }
 
-// --- API: MỞ KHÓA TÀI KHOẢN ---
+// --- API: M�?KHÓA TÀI KHOẢN ---
 // Command: UNLOCK_USER <username>
 void process_unlock_user(int sock, PGconn *db_conn, char *payload) {
     char response[BUFF_SIZE];
@@ -129,7 +129,7 @@ void process_unlock_user(int sock, PGconn *db_conn, char *payload) {
     // TODO: Implement unlock user
     // 1. Parse username
     // 2. Cập nhật is_locked = false: db_unlock_user()
-    // 3. Gửi kết quả về client
+    // 3. Gửi kết qu�?v�?client
     
     sprintf(response, "%s: Unlock user - Coming soon\n", RES_SYNTAX_ERROR);
     send(sock, response, strlen(response), 0);

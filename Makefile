@@ -1,5 +1,5 @@
 # Tên file chạy đầu ra
-TARGET = server
+TARGET = server_binary
 
 # Trình biên dịch
 CC = gcc
